@@ -38,6 +38,7 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
         "sellAmountBeforeFee": amount_in
     }
     r = requests.get(fee_and_quote, params=get_params)
+    print(str(r.status_code) + ':' + r.text)
     assert r.ok and r.status_code == 200
 
     # These two values are needed to create an order
