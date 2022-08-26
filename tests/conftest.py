@@ -126,6 +126,10 @@ def aura():
   return interface.ERC20(AURA)
 
 @pytest.fixture
+def graviaura():
+  return interface.ERC20(BVE_AURA)
+
+@pytest.fixture
 def usdc_whale():
   return accounts.at(USDC_WHALE, force=True)
 

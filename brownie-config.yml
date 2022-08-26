@@ -24,3 +24,6 @@ reports:
         - IERC20
         - ReentrancyGuard
         - Address
+        
+hypothesis:
+  max_examples: 100

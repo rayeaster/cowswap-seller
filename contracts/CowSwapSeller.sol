@@ -232,7 +232,8 @@ contract CowSwapSeller is ReentrancyGuard {
         address tokenIn = address(orderData.sellToken);
         address tokenOut = address(orderData.buyToken);
 
-        uint256 amountIn = orderData.sellAmount;
+        // The fee is always paid on top of the specified sell amount.
+        uint256 amountIn = orderData.sellAmount + orderData.feeAmount;
         uint256 amountOut = orderData.buyAmount;
 
         Quote memory result = pricer.findOptimalSwap(tokenIn, tokenOut, amountIn);
