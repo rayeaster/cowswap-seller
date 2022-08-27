@@ -39,7 +39,7 @@ def get_cowswap_order_quote(sell_token, buy_token, amount_in):
     print(str(r.status_code) + ':' + r.text)
     
     ## skip if no liquidity by cowswap solver
-    if r.status_code == 404 and "NoLiquidity" in r.text:
+    if (r.status_code == 404 and "NoLiquidity" in r.text) or (r.status_code == 400 and "UnsupportedToken" in r.text):
        return (0, 0, amount_in)
     
     assert r.ok and r.status_code == 200

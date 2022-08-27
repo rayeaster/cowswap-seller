@@ -19,6 +19,8 @@ USDT = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
 SPELL = "0x090185f2135308bad17527004364ebcc2d37e5f6"
 ALCX = "0xdbdb4d16eda451d0503b854cf79d55697f90c8df"
 LFT = "0xB620Be8a1949AA9532e6a3510132864EF9Bc3F82"
+DAI = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+USDN = "0x674C6Ad92Fd080e4004b2312b45f796a192D27a0"
 
 ## Mostly Aura
 AURA = "0xC0c293ce456fF0ED870ADd98a0828Dd4d2903DBF"
@@ -59,7 +61,7 @@ GRAVI_AURA = "0xBA485b556399123261a5F9c95d413B4f93107407"
 
 FUZZ_TOKEN_LIST = [
   (CVX, 18), ## CVX
-  ("0x6B175474E89094C44Da98b954EedeAC495271d0F", 18), ## DAI
+  (DAI, 18), ## DAI
   (SPELL, 18), ## SPELL
   (ALCX, 18), ## ALCX
   ("0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0", 18), ## MATIC
@@ -74,7 +76,7 @@ FUZZ_TOKEN_LIST = [
   (FLX, 18), ## FLX
   (GRO, 18), ## GRO
   (STG, 18), ## STG
-  ("0x674C6Ad92Fd080e4004b2312b45f796a192D27a0", 18), ## USDN
+  (USDN, 18), ## USDN
   ("0xFEEf77d3f69374f66429C91d732A244f074bdf74", 18), ## cvxFXS
   (INV, 18), ## INV
   (WETH, 18),
@@ -101,8 +103,11 @@ FUZZ_TOKEN_LIST = [
   (GRAVI_AURA, 18)
 ]
 
+def if_stable_coin(token):
+   return token == interface.ERC20(USDC).address or token == interface.ERC20(USDT).address or token == interface.ERC20(USDN).address or token == interface.ERC20(DAI).address
 
-### Sell token for Weth
+
+### Sell token comparison between cowswap and pricer
 @given(sell_token_num=strategy("uint256"), buy_token_num=strategy("uint256"))
 def test_fuzz_quote_comparison(sell_token_num, buy_token_num, pm):
   
@@ -121,7 +126,7 @@ def test_fuzz_quote_comparison(sell_token_num, buy_token_num, pm):
      count = 10
   if sell_token.address == interface.ERC20(FLX).address or sell_token.address == interface.ERC20(INV).address or sell_token.address == interface.ERC20(GNO).address or sell_token.address == interface.ERC20(ALCX).address or sell_token.address == interface.ERC20(AURA_BAL).address:
      count = 100
-  if sell_token.address == interface.ERC20(JPEG).address or sell_token.address == interface.ERC20(SPELL).address or sell_token.address == interface.ERC20(LFT).address:
+  if sell_token.address == interface.ERC20(JPEG).address or sell_token.address == interface.ERC20(SPELL).address or sell_token.address == interface.ERC20(LFT).address or (if_stable_coin(sell_token.address) and if_stable_coin(buy_token.address)):
      count = 1000000
      
   sell_amount = count * (10**sellTokenDecimal[1])
@@ -131,7 +136,7 @@ def test_fuzz_quote_comparison(sell_token_num, buy_token_num, pm):
   univ3simulator = pm('rayeaster/on-chain-pricer@0.3').UniV3SwapSimulator.deploy({"from": accounts[0]})
   balancerV2Simulator = pm('rayeaster/on-chain-pricer@0.3').BalancerSwapSimulator.deploy({"from": accounts[0]})
   lenient_contract = pm('rayeaster/on-chain-pricer@0.3').OnChainPricingMainnetLenient.deploy(univ3simulator.address, balancerV2Simulator.address, {"from": accounts[0]})
-  lenient_contract.setSlippage(499, {"from": accounts.at(lenient_contract.TECH_OPS(), force=True)})
+  lenient_contract.setSlippage(100, {"from": accounts.at(lenient_contract.TECH_OPS(), force=True)})
     
   #### compare quote between cowswap and pricer
   #### coswap quote return (fee_amount, buy_amount_after_fee, sell_amount_after_fee)
