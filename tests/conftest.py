@@ -58,6 +58,14 @@ def seller(lenient_contract):
   return CowSwapDemoSeller.deploy(lenient_contract, {"from": accounts[0]})
 
 @pytest.fixture
+def seller_v_0_3_deployed(lenient_contract):
+  return CowSwapDemoSeller.at("0x75547825A99283379e0E812B7c10F832813326d6")
+
+@pytest.fixture
+def seller_v_0_3_deployed_manager(seller_v_0_3_deployed):
+  return accounts.at(seller_v_0_3_deployed.manager(), force=True)
+
+@pytest.fixture
 def oneE18():
   return 1000000000000000000
 
@@ -116,6 +124,10 @@ def dai():
 @pytest.fixture
 def aura():
   return interface.ERC20(AURA)
+
+@pytest.fixture
+def graviaura():
+  return interface.ERC20(BVE_AURA)
 
 @pytest.fixture
 def usdc_whale():

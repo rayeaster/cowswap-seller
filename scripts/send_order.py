@@ -22,13 +22,11 @@ def main():
     amount = 1000000000000000000
 
     cowswap_sell_demo(c, weth, usdc, amount, a[0])
-
-def get_cowswap_order(contract, sell_token, buy_token, amount_in):
-    """
-        Get quote, place order and return orderData as well as orderUid
-    """
-    amount =    amount_in
-
+    
+"""
+    Get quote from Cowswap, return (fee_amount, buy_amount_after_fee, sell_amount_after_fee)
+"""
+def get_cowswap_order_quote(sell_token, buy_token, amount_in):
     # get the fee + the buy amount after fee
     ## TODO: Refactor to new, better endpoint: https://discord.com/channels/869166959739170836/935460632818516048/953702376345309254
     fee_and_quote = "https://api.cow.fi/mainnet/api/v1/feeAndQuote/sell"
@@ -38,6 +36,12 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
         "sellAmountBeforeFee": amount_in
     }
     r = requests.get(fee_and_quote, params=get_params)
+    print(str(r.status_code) + ':' + r.text)
+    
+    ## skip if no liquidity by cowswap solver
+    if (r.status_code == 404 and "NoLiquidity" in r.text) or (r.status_code == 400 and "UnsupportedToken" in r.text):
+       return (0, 0, amount_in)
+    
     assert r.ok and r.status_code == 200
 
     # These two values are needed to create an order
@@ -45,6 +49,14 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
     buy_amount_after_fee = int(r.json()['buyAmountAfterFee'])
     assert fee_amount > 0
     assert buy_amount_after_fee > 0
+    return (fee_amount, buy_amount_after_fee, amount_in - fee_amount)
+
+def get_cowswap_order(contract, sell_token, buy_token, amount_in):
+    """
+        Get quote, place order and return orderData as well as orderUid
+    """
+    # These values are needed to create an order
+    fee_amount, buy_amount_after_fee, sell_amount_after_fee = get_cowswap_order_quote(sell_token, buy_token, amount_in)
 
     deadline = chain.time() + 60*60*1 # 1 hour
 
@@ -52,7 +64,7 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
     order_payload = {
         "sellToken": sell_token.address,
         "buyToken": buy_token.address,
-        "sellAmount": str(amount-fee_amount), # amount that we have minus the fee we have to pay
+        "sellAmount": str(sell_amount_after_fee), # amount that we have minus the fee we have to pay
         "buyAmount": str(buy_amount_after_fee), # buy amount fetched from the previous call
         "validTo": deadline,
         "appData": "0x2B8694ED30082129598720860E8E972F07AA10D9B81CAE16CA0E2CFB24743E24", # maps to https://bafybeiblq2ko2maieeuvtbzaqyhi5fzpa6vbbwnydsxbnsqoft5si5b6eq.ipfs.dweb.link
@@ -77,7 +89,7 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
         sell_token.address, 
         buy_token.address, 
         contract.address, 
-        amount-fee_amount,
+        sell_amount_after_fee,
         buy_amount_after_fee,
         deadline,
         "0x2B8694ED30082129598720860E8E972F07AA10D9B81CAE16CA0E2CFB24743E24",
@@ -94,7 +106,7 @@ def get_cowswap_order(contract, sell_token, buy_token, amount_in):
         sellToken=sell_token.address,
         buyToken=buy_token.address,
         receiver=contract.address,
-        sellAmount=amount-fee_amount,
+        sellAmount=sell_amount_after_fee,
         buyAmount=buy_amount_after_fee,
         validTo=deadline,
         appData="0x2B8694ED30082129598720860E8E972F07AA10D9B81CAE16CA0E2CFB24743E24",

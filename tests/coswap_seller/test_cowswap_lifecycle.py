@@ -1,6 +1,8 @@
 import brownie
 from brownie import *
-from scripts.send_order import get_cowswap_order
+import pytest
+
+from scripts.send_order import get_cowswap_order, get_cowswap_order_quote
 
 """
     Verify order
@@ -30,5 +32,84 @@ def test_verify_and_add_order(seller, usdc, weth, manager):
 
   assert settlement.preSignature(uid) > 0
 
+"""
+    Cowswap RELAYER approval amount override issue found by watchpug audit 
+    https://www.hacknote.co/17c261f7d8fWbdml/doc/182cf5567f8Gdn7B#182cf5567f8Gdn7B
+"""
+@pytest.mark.skip(reason="existing deployed version will override")
+def test_approval_override(seller_v_0_3_deployed, usdc, weth, wbtc, seller_v_0_3_deployed_manager):
+  sell_amount = 500 * 1000000000000000000
+  settlement = interface.ICowSettlement(seller_v_0_3_deployed.SETTLEMENT())
 
+  ## First order to setup inital approval to Cowswap relayer 
+  order_details = get_cowswap_order(seller_v_0_3_deployed, weth, usdc, sell_amount)
+  data = order_details.order_data
+  uid = order_details.order_uid
+  assert uid == seller_v_0_3_deployed.getOrderID(data)
+  seller_v_0_3_deployed.initiateCowswapOrder(data, uid, {"from": seller_v_0_3_deployed_manager})
+  assert settlement.preSignature(uid) > 0
+  assert weth.allowance(seller_v_0_3_deployed.address, seller_v_0_3_deployed.RELAYER()) == sell_amount
+
+  ## Second order to override smaller approval to Cowswap relayer 
+  sell_amount2 = 100 * 1000000000000000000
+  order_details2 = get_cowswap_order(seller_v_0_3_deployed, weth, wbtc, sell_amount2)
+  data2 = order_details2.order_data
+  uid2 = order_details2.order_uid
+  assert uid2 == seller_v_0_3_deployed.getOrderID(data2)
+  seller_v_0_3_deployed.initiateCowswapOrder(data2, uid2, {"from": seller_v_0_3_deployed_manager})
+  assert settlement.preSignature(uid2) > 0
+  
+  ## According to Cowswap relayer code, the first order will fail to be filled due to insufficient allowance to transfer sell_token
+  ## https://etherscan.io/address/0xc92e8bdf79f0507f65a392b0ab4667716bfe0110#code#F15#L112  
+  assert weth.allowance(seller_v_0_3_deployed.address, seller_v_0_3_deployed.RELAYER()) == sell_amount2
+
+def test_approval_override_fix(seller, usdc, weth, wbtc, manager):
+  sell_amount = 500 * 1000000000000000000
+  settlement = interface.ICowSettlement(seller.SETTLEMENT())
+
+  ## First order to setup inital approval to Cowswap relayer 
+  order_details = get_cowswap_order(seller, weth, usdc, sell_amount)
+  data = order_details.order_data
+  uid = order_details.order_uid
+  assert uid == seller.getOrderID(data)
+  seller.initiateCowswapOrder(data, uid, {"from": manager})
+  assert settlement.preSignature(uid) > 0
+  assert weth.allowance(seller.address, seller.RELAYER()) == sell_amount
+
+  ## Second order to override smaller approval to Cowswap relayer 
+  sell_amount2 = 100 * 1000000000000000000
+  order_details2 = get_cowswap_order(seller, weth, wbtc, sell_amount2)
+  data2 = order_details2.order_data
+  uid2 = order_details2.order_uid
+  assert uid2 == seller.getOrderID(data2)
+  seller.initiateCowswapOrder(data2, uid2, {"from": manager})
+  assert settlement.preSignature(uid2) > 0
+  
+  assert weth.allowance(seller.address, seller.RELAYER()) == sell_amount2 + sell_amount
+
+"""
+    From Cowswap docs: the fee is always paid on top of the specified sell amount
+    https://www.hacknote.co/17c261f7d8fWbdml/doc/182cf5567f8Gdn7B#182cf5567f8Gdn7B
+"""
+def test_query_sell_amount_around_fee(aura, graviaura, weth, lenient_contract):
+  sell_amount = 1000 * 1000000000000000000
+
+  ## coswap quote return (fee_amount, buy_amount_after_fee, sell_amount_after_fee)
+  ## pricer quote return (SwapType, amountOut, pools, poolFees)
+  quoteAura2ETH = get_cowswap_order_quote(aura, weth, sell_amount)
+  assert quoteAura2ETH[0] + quoteAura2ETH[2] == sell_amount
+  quoteAura2ETHPricer = lenient_contract.findOptimalSwap(aura, weth, sell_amount)
+  assert quoteAura2ETH[1] >= quoteAura2ETHPricer[1]
+  
+  quoteGraviAura2ETH = get_cowswap_order_quote(graviaura, weth, sell_amount)
+  assert quoteGraviAura2ETH[0] + quoteGraviAura2ETH[2] == sell_amount
+  quoteGraviAura2ETHPricer = lenient_contract.findOptimalSwap(graviaura, weth, sell_amount)
+  assert quoteGraviAura2ETH[1] >= quoteGraviAura2ETHPricer[1]
+  
+  quoteAura2GraviAura = get_cowswap_order_quote(aura, graviaura, sell_amount)
+  assert quoteAura2GraviAura[0] + quoteAura2GraviAura[2] == sell_amount
+  quoteAura2GraviAuraPricer = lenient_contract.findOptimalSwap(aura, graviaura, sell_amount)
+  assert quoteAura2GraviAura[1] >= quoteGraviAura2ETHPricer[1]
+  
+  
 

@@ -232,7 +232,15 @@ contract CowSwapSeller is ReentrancyGuard {
         address tokenIn = address(orderData.sellToken);
         address tokenOut = address(orderData.buyToken);
 
-        uint256 amountIn = orderData.sellAmount;
+        // Cowswap doc: The fee is always paid on top of the specified sell amount. 
+        // https://docs.cow.fi/tutorials/how-to-submit-orders-via-the-api/2.-query-the-fee-endpoint
+        // Cowswap will provide an "estimation" including the [feeAmount] & [sellAmount(AfterFee)] split which are calculated by some external offline solver (out of our control)
+        // https://docs.cow.fi/off-chain-services/api/fee-mechanism
+        // https://github.com/gnosis/gp-v2-services/blob/d56844d4eef5b70dc4fc74667b55154f802e3f7c/crates/orderbook/src/api/post_quote.rs#L288
+        // Thus it might make sense to use the sum of [feeAmount] & [sellAmount(AfterFee)] which equals to the original submitted total amount of sell token, e.g., sellAmount(BeforeFee)
+        // Lenient-version pricer also allows some slippage (in our own control) so we are fine for subsequent quote comparison
+        // credits to watchpug audit
+        uint256 amountIn = orderData.sellAmount + orderData.feeAmount;
         uint256 amountOut = orderData.buyAmount;
 
         Quote memory result = pricer.findOptimalSwap(tokenIn, tokenOut, amountIn);
@@ -251,8 +259,7 @@ contract CowSwapSeller is ReentrancyGuard {
         require(checkCowswapOrder(orderData, orderUid), "!cowLowerPrice");
 
         // Because swap is looking good, check we have the amount, then give allowance to the Cowswap Router
-        orderData.sellToken.safeApprove(RELAYER, 0); // Set to 0 just in case
-        orderData.sellToken.safeApprove(RELAYER, orderData.sellAmount + orderData.feeAmount);
+        orderData.sellToken.safeIncreaseAllowance(RELAYER, orderData.sellAmount + orderData.feeAmount);
 
         // Once allowance is set, let's setPresignature and the order will happen
         //setPreSignature
